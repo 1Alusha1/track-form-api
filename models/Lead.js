@@ -1,10 +1,12 @@
 import mongoose, { Schema } from "mongoose";
 
 const LeadSchema = new Schema({
-  full_name: String,
+  platform: String,
   email: String,
-  phone: String,
-  source: String,
+  created_at: {
+    type: Number,
+    default: new Date().getTime(),
+  },
 });
 
 export default mongoose.model("Lead", LeadSchema);

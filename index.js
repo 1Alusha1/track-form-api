@@ -1,24 +1,5 @@
-import express from "express";
-import { config } from "dotenv";
-import cors from "cors";
-import mongoose from "mongoose";
+import app from "./server.js";
+import functions from "@google-cloud/functions-framework";
 
-config();
-
-const app = express();
-
-app.get("/", (req, res) => {
-  res.status(200).json({ hello: "world" });
-});
-
-app.use(express.json());
-app.use(cors());
-
-mongoose
-  .connect(process.env.MONGO_URI, {})
-  .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.error("MongoDB connection error:", err));
-
-app.listen(process.env.PORT, () =>
-  console.log(`Server started on port ${process.env.PORT}`)
-);
+// Регистрируем HTTP-обработчик
+functions.http("api", app);
