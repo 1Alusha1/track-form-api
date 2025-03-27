@@ -89,7 +89,7 @@ app.post('/register-user', async (req, res) => {
 
     const record = await UserSchema.findOne({ userId });
 
-    if (!record) {
+    if (record) {
       return res.status(400).json({
         error: true,
         message: `You've already registred`,
