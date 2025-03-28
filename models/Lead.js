@@ -5,7 +5,7 @@ const LeadSchema = new Schema({
   email: String,
   created_at: {
     type: Number,
-    default: new Date().getTime(),
+    default: Date.now(),
   },
 });
 
