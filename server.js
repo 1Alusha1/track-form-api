@@ -21,37 +21,29 @@ app.get("/", (req, res) => {
 });
 
 // lead
-app.post("/", async (req, res) => {
-  const { email, platform, userId, utmLink } = req.body;
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-
-  if (email) {
-    if (!emailRegex.test(email)) {
-      return res.status(403).json({
-        error: true,
-        message: `email isn't correct`,
-      });
-    }
-  }
+app.post('/', async (req, res) => {
+  const { email, platform, userId, utmLink,leadIp } = req.body;
 
   try {
     const lead = await new LeadSchema({
       ...req.body,
-      utmLink: JSON.stringify(utmLink),
     });
+
+    console.log(req.body)
     const response = await fetch(
       `https://api.telegram.org/bot${
         process.env.BOT_TOKEN
       }/sendMessage?chat_id=${userId}&text=
-        ${platform ? `Platform: ${platform} ` : ""} \n
-        ${email ? `Email: ${email}` : ""}\n
-        ${utmLink ? `UTM: ${JSON.stringify(utmLink)}` : ""}\n
+        ${platform ? `Platform: ${platform} ` : ''} \n
+        ${email ? `Your answer: ${email}` : ''}\n
+        ${utmLink ? `UTM: ${utmLink}` : ''}\n
+        ${leadIp ? `IP: ${leadIp}` : ''}\n
         ${formatDateTimeManualUTC2(lead.created_at)}
       `,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "content-type": "application/json",
+          'content-type': 'application/json',
         },
       }
     );
@@ -63,7 +55,7 @@ app.post("/", async (req, res) => {
     if (data.ok) {
       return res.status(201).json({
         error: false,
-        message: "new lead click has benn added and sended",
+        message: 'new lead click has benn added and sended',
       });
     }
   } catch (err) {
@@ -71,10 +63,9 @@ app.post("/", async (req, res) => {
 
     return res
       .status(500)
-      .json({ error: true, message: "Error while adding record in database" });
+      .json({ error: true, message: 'Error while adding record in database' });
   }
 });
-
 app.get("/get-leads", async (req, res) => {
   try {
     const records = await LeadSchema.findOne();
