@@ -21,41 +21,40 @@ app.get("/", (req, res) => {
 });
 
 // lead
-app.post('/', async (req, res) => {
-  const { email, platform, userId, utmLink,leadIp } = req.body;
+// записывает лидов в бд и шлет месседж в бота
+app.post("/", async (req, res) => {
+  const { email, platform, userId, utmLink, leadIp } = req.body;
 
   try {
     const lead = await new LeadSchema({
       ...req.body,
     });
 
-    console.log(req.body)
     const response = await fetch(
       `https://api.telegram.org/bot${
         process.env.BOT_TOKEN
       }/sendMessage?chat_id=${userId}&text=
-        ${platform ? `Platform: ${platform} ` : ''} \n
-        ${email ? `Your answer: ${email}` : ''}\n
-        ${utmLink ? `UTM: ${utmLink}` : ''}\n
-        ${leadIp ? `IP: ${leadIp}` : ''}\n
+        ${platform ? `Platform: ${platform} ` : ""} \n
+        ${email ? `Your answer: ${email}` : ""}\n
+        ${utmLink ? `UTM: ${utmLink}` : ""}\n
+        ${leadIp ? `IP: ${leadIp}` : ""}\n
         ${formatDateTimeManualUTC2(lead.created_at)}
       `,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'content-type': 'application/json',
+          "content-type": "application/json",
         },
       }
     );
 
     lead.save();
-    res.status(200);
     const data = await response.json();
 
     if (data.ok) {
       return res.status(201).json({
         error: false,
-        message: 'new lead click has benn added and sended',
+        message: "new lead click has benn added and sended",
       });
     }
   } catch (err) {
@@ -63,9 +62,11 @@ app.post('/', async (req, res) => {
 
     return res
       .status(500)
-      .json({ error: true, message: 'Error while adding record in database' });
+      .json({ error: true, message: "Error while adding record in database" });
   }
 });
+
+// просто получает лидов
 app.get("/get-leads", async (req, res) => {
   try {
     const records = await LeadSchema.findOne();
@@ -80,25 +81,186 @@ app.get("/get-leads", async (req, res) => {
   }
 });
 
-app.post("/get-leads-by-date", async (req, res) => {
-  console.log(req.body);
+// показывает общее кол-во лидов с утм
+app.get("/get-leads-by-utm", async (req, res) => {
+  try {
+    const records = await LeadSchema.find({
+      utmLink: { $ne: "", $exists: true },
+    });
+
+    if (!records.length) {
+      return res.status(200).json({
+        error: false,
+        message: "Leads with utm haven't found",
+        records: [],
+        count: 0,
+      });
+    }
+
+    const result = parseLeadsByUtm(records);
+
+    return res.status(200).json({
+      error: false,
+      message: "",
+      records: result,
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({
+      error: err,
+      message: "Error while geting utm records from database",
+    });
+  }
+});
+
+// парсит лидов с ютм в готовый для вывода массив
+const parseLeadsByUtm = (records) => {
+  const result = {};
+
+  for (let i = 0; i < records.length; i++) {
+    if (!result[records[i].utmLink]) {
+      result[records[i].utmLink] = [];
+    }
+  }
+
+  for (let i = 0; i < records.length; i++) {
+    if (result[records[i].utmLink]) {
+      result[records[i].utmLink].push(records[i]);
+    }
+  }
+
+  const leadsCount = {};
+  for (let item in result) {
+    for (let i = 0; i < result[item].length; i++) {
+      if (!leadsCount[result[item][i].utmLink]) {
+        leadsCount[result[item][i].utmLink] = {
+          name: result[item][i].utmLink,
+          count: result[item].length,
+        };
+      }
+    }
+  }
+
+  const final = Object.keys(leadsCount).map((item) => ({
+    ...leadsCount[item],
+  }));
+
+  return final;
+};
+
+// Показывает инфу за день с какой рекламы перешли и количество человек с этой рекламы
+app.post("/get-leads-by-date-utm", async (req, res) => {
   const { date } = req.body;
-  const dateRegex = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+  const dateRegex = /^(0[1-9]|[12]\d|3[01])\.(0[1-9]|1[0-2])\.\d{4}$/;
 
   if (!dateRegex.test(date)) {
     return res.status(400).json({
       error: true,
-      message: "Date has incorrect formate. Date mus be in format yyyy-mm-dd",
+      message: "Date has incorrect formate. Date must be in format dd.mm.yyyy",
     });
   }
-  const dateArray = date.split("-");
-  console.log(dateArray);
+
+  const dateArray = date.split(".");
   const { startDay, endDay } = getDatePointGMT(
-    Number(dateArray[0]),
+    Number(dateArray[2]),
     Number(dateArray[1]),
-    Number(dateArray[2])
+    Number(dateArray[0])
   );
-  console.log(startDay, endDay);
+
+  try {
+    const records = await LeadSchema.find({
+      created_at: { $gte: startDay, $lt: endDay },
+      utmLink: { $ne: "", $exists: true },
+    });
+
+    if (!records.length) {
+      return res.status(200).json({
+        error: false,
+        message: "For this day leads haven't found",
+        records: [],
+        count: 0,
+      });
+    }
+    const result = parseLeadsByUtm(records);
+
+    return res.status(200).json({
+      error: false,
+      message: "",
+      records: result,
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({
+      error: err,
+      message: "Error while geting records by date from database",
+    });
+  }
+});
+
+// показывает общее количество лидов за день
+app.post("/get-leads-by-date", async (req, res) => {
+  const { date } = req.body;
+  const dateRegex = /^(0[1-9]|[12]\d|3[01])\.(0[1-9]|1[0-2])\.\d{4}$/;
+
+  if (!dateRegex.test(date)) {
+    return res.status(400).json({
+      error: true,
+      message: "Date has incorrect formate. Date must be in format dd.mm.yyyy",
+    });
+  }
+
+  const dateArray = date.split(".");
+  const { startDay, endDay } = getDatePointGMT(
+    Number(dateArray[2]),
+    Number(dateArray[1]),
+    Number(dateArray[0])
+  );
+
+  try {
+    const records = await LeadSchema.find({
+      created_at: { $gte: startDay, $lt: endDay },
+    });
+
+    if (!records.length) {
+      return res.status(200).json({
+        error: false,
+        message: "For this day leads haven't found",
+        records: [],
+        count: 0,
+      });
+    }
+
+    return res.status(200).json({
+      error: false,
+      message: "",
+      records: records,
+      count: records.length,
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({
+      error: err,
+      message: "Error while geting records by date from database",
+    });
+  }
+});
+
+// показывает количество лидов за текущий день
+app.get("/get-leads-current-day", async (req, res) => {
+  const date = new Date();
+  const fd = new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+
+  const formattedDate = fd.split(".");
+  const { startDay, endDay } = getDatePointGMT(
+    Number(formattedDate[2]),
+    Number(formattedDate[1]),
+    Number(formattedDate[0])
+  );
+
   try {
     const records = await LeadSchema.find({
       created_at: { $gte: startDay, $lt: endDay },
@@ -169,7 +331,6 @@ app.post("/register-user", async (req, res) => {
 
 app.get("/get-user/:userId", async (req, res) => {
   const { userId } = req.params;
-  console.log(userId);
   try {
     if (!userId) {
       return res.status(400).json({
