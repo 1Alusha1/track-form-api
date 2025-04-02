@@ -69,7 +69,7 @@ app.post("/", async (req, res) => {
 // просто получает лидов
 app.get("/get-leads", async (req, res) => {
   try {
-    const records = await LeadSchema.findOne();
+    const records = await LeadSchema.find();
 
     return res.status(200).json({ error: false, message: "", records });
   } catch (err) {
@@ -363,6 +363,6 @@ mongoose
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
-app.listen(3000, () => console.log("server was start"));
+app.listen(process.env.PORT, () => console.log("server was start"));
 
 export default app;
